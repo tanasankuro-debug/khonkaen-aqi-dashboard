@@ -52,11 +52,11 @@ export function useAirQualityMap() {
       setLastUpdated(new Date());
       setUseMock(false);
     } catch (err) {
-      console.warn('API failed, using mock:', err.message);
+      console.error('API failed after retries:', err.message);
       setStations(MOCK_DATA.stations);
       setLastUpdated(new Date());
       setUseMock(true);
-      setError('ไม่สามารถเชื่อมต่อ Air4Thai API ได้ — แสดงข้อมูลตัวอย่าง');
+      setError(`ไม่สามารถเชื่อมต่อ Air4Thai API ได้ (${err.message}) — แสดงข้อมูลตัวอย่าง`);
     } finally {
       setLoading(false);
     }
