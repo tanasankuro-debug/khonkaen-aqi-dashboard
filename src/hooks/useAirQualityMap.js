@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { MOCK_DATA } from '../data/mockData';
 
-const API_URL   = '/api/air4thai/services/getNewAQI_JSON.php';
+const API_URL   = '/api/air4thai'; // → Vercel function (prod) or Vite proxy (dev)
 const REFRESH_MS = 5 * 60 * 1000;
 const TIMEOUT_MS = 20_000;
 const MAX_RETRY  = 3;

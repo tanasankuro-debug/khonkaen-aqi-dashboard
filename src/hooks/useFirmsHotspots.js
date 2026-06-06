@@ -40,7 +40,8 @@ export function useFirmsHotspots() {
     setLoading(true);
     setError(null);
     try {
-      const url = `/api/firms/api/area/csv/${firmsKey}/VIIRS_SNPP_NRT/${AREA}/${DAY_RANGE}`;
+      // /api/firms → Vercel function (prod) or Vite proxy (dev)
+      const url = `/api/firms`;
       const res = await fetch(url, { signal: AbortSignal.timeout(20000) });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const text = await res.text();
