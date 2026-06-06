@@ -1,0 +1,97 @@
+@import "tailwindcss";
+
+/* ─── Reset ────────────────────────────────────────── */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body, #root { height: 100%; width: 100%; overflow: hidden;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+
+/* ─── Theme CSS Variables ───────────────────────────
+   Default = Light Mode
+   [data-theme="dark"] overrides to Dark Mode
+──────────────────────────────────────────────────── */
+:root {
+  --t-bg:           #f1f5f9;
+  --t-glass:        rgba(255, 255, 255, 0.88);
+  --t-glass-bdr:    rgba(15, 23, 42, 0.08);
+  --t-text1:        #0f172a;
+  --t-text2:        #475569;
+  --t-text3:        #94a3b8;
+  --t-subtext:      rgba(15, 23, 42, 0.40);
+  --t-border:       rgba(15, 23, 42, 0.08);
+  --t-input-bg:     rgba(0, 0, 0, 0.04);
+  --t-input-bdr:    rgba(0, 0, 0, 0.12);
+  --t-hover:        rgba(0, 0, 0, 0.03);
+  --t-item-bdr:     rgba(0, 0, 0, 0.06);
+  --t-map-bg:       #e8ecef;
+  --t-shadow:       rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="dark"] {
+  --t-bg:           #0a0e1a;
+  --t-glass:        rgba(15, 23, 42, 0.80);
+  --t-glass-bdr:    rgba(255, 255, 255, 0.10);
+  --t-text1:        #f1f5f9;
+  --t-text2:        #94a3b8;
+  --t-text3:        #475569;
+  --t-subtext:      rgba(255, 255, 255, 0.40);
+  --t-border:       rgba(255, 255, 255, 0.10);
+  --t-input-bg:     rgba(255, 255, 255, 0.07);
+  --t-input-bdr:    rgba(255, 255, 255, 0.12);
+  --t-hover:        rgba(255, 255, 255, 0.05);
+  --t-item-bdr:     rgba(255, 255, 255, 0.05);
+  --t-map-bg:       #0f172a;
+  --t-shadow:       rgba(0, 0, 0, 0.50);
+}
+
+/* ─── Glassmorphism (uses theme vars) ───────────── */
+.glass {
+  background: var(--t-glass);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid var(--t-glass-bdr);
+}
+
+/* ─── MapTiler / MapLibre GL overrides ─────────── */
+.maplibregl-map { background: var(--t-map-bg); }
+
+.maplibregl-ctrl-group {
+  border: none !important;
+  box-shadow: 0 4px 16px var(--t-shadow) !important;
+  background: var(--t-glass) !important;
+  backdrop-filter: blur(10px) !important;
+}
+.maplibregl-ctrl-group button {
+  background: transparent !important;
+  color: var(--t-text1) !important;
+  border-color: var(--t-glass-bdr) !important;
+  width: 28px !important;
+  height: 28px !important;
+}
+.maplibregl-ctrl-group button:hover { background: rgba(99,102,241,0.15) !important; }
+.maplibregl-ctrl-attrib {
+  background: var(--t-glass) !important;
+  color: var(--t-text3) !important;
+  font-size: 9px !important;
+  backdrop-filter: blur(8px) !important;
+}
+.maplibregl-ctrl-attrib a { color: #6366f1 !important; }
+.maplibregl-popup-content { padding: 0 !important; background: transparent !important; box-shadow: none !important; }
+.maplibregl-popup-tip { display: none !important; }
+
+/* ─── Animations ────────────────────────────────── */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 1s linear infinite; }
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-in-up { animation: fadeInUp 0.25s ease forwards; }
+
+/* ─── Scrollbar ─────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--t-glass-bdr);
+  border-radius: 2px;
+}
