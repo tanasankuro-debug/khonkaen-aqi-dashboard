@@ -1,16 +1,30 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { MOCK_DATA } from '../data/mockData';
 
-const API_URL = '/api/air4thai/services/getNewAQI_JSON.php';
+const API_URL   = '/api/air4thai/services/getNewAQI_JSON.php';
 const REFRESH_MS = 5 * 60 * 1000;
+const TIMEOUT_MS = 20_000;
+const MAX_RETRY  = 3;
 
 async function fetchStations() {
-  const res = await fetch(API_URL, { signal: AbortSignal.timeout(10000) });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const json = await res.json();
-  const stations = json?.stations ?? json?.data ?? (Array.isArray(json) ? json : null);
-  if (!stations?.length) throw new Error('No stations in response');
-  return stations;
+  let lastErr;
+  for (let attempt = 1; attempt <= MAX_RETRY; attempt++) {
+    try {
+      const res = await fetch(API_URL, { signal: AbortSignal.timeout(TIMEOUT_MS) });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      const stations = json?.stations ?? json?.data ?? (Array.isArray(json) ? json : null);
+      if (!stations?.length) throw new Error('No stations in response');
+      return stations;
+    } catch (err) {
+      lastErr = err;
+      if (attempt < MAX_RETRY) {
+        // wait 2s, 4s before next attempt
+        await new Promise(r => setTimeout(r, attempt * 2000));
+      }
+    }
+  }
+  throw lastErr;
 }
 
 export function useAirQualityMap() {
