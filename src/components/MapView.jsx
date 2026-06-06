@@ -9,7 +9,8 @@ import { useDraggable } from '../hooks/useDraggable';
 import MapLegend from './MapLegend';
 import ForecastPanel from './ForecastPanel';
 
-config.apiKey = import.meta.env.VITE_MAPTILER_API_KEY || '';
+const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_API_KEY || '';
+config.apiKey = MAPTILER_KEY;
 config.primaryLanguage = Language.THAI;
 
 const KK_CENTER = [102.8236, 16.4322];
@@ -144,14 +145,29 @@ function MapInstance({
   // ── Init map ─────────────────────────────────────────────────
   useEffect(() => {
     if (!containerRef.current) return;
-    const map = new Map({
-      container: containerRef.current,
-      style:     resolveStyle(isDarkMode, mapType),
-      center:    KK_CENTER,
-      zoom:      7,
-      attributionControl: true,
-      navigationControl:  true,
-    });
+    if (!MAPTILER_KEY) {
+      containerRef.current.innerHTML =
+        '<div style="display:flex;align-items:center;justify-content:center;height:100%;background:#0f172a;color:#f87171;font-family:sans-serif;font-size:14px;padding:24px;text-align:center">' +
+        '<div><div style="font-size:32px;margin-bottom:12px">⚠️</div>' +
+        '<b>VITE_MAPTILER_API_KEY ไม่ถูกตั้งค่า</b><br><br>' +
+        'ไปที่ Vercel → Settings → Environment Variables<br>' +
+        'แล้วเพิ่ม VITE_MAPTILER_API_KEY แล้ว Redeploy</div></div>';
+      return;
+    }
+    let map;
+    try {
+      map = new Map({
+        container: containerRef.current,
+        style:     resolveStyle(isDarkMode, mapType),
+        center:    KK_CENTER,
+        zoom:      7,
+        attributionControl: true,
+        navigationControl:  true,
+      });
+    } catch (e) {
+      console.error('Map init failed:', e);
+      return;
+    }
     mapRef.current = map;
 
     map.on('load', () => {
@@ -275,7 +291,7 @@ function MapInstance({
       });
     });
 
-    return () => { mapLoadedRef.current = false; map.remove(); };
+    return () => { mapLoadedRef.current = false; map?.remove(); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Sync AQI stations ────────────────────────────────────────

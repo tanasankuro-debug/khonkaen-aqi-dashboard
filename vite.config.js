@@ -7,6 +7,22 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react(), tailwindcss()],
+
+    // Prevent Vite from pre-bundling maplibre-gl (UMD) incorrectly in production
+    optimizeDeps: {
+      exclude: ['@maptiler/sdk', '@maptiler/weather'],
+    },
+
+    // Ensure the SDK worker assets are preserved
+    build: {
+      rollupOptions: {
+        external: [],
+      },
+      commonjsOptions: {
+        transformMixedEsModules: true,
+      },
+    },
+
     server: {
       proxy: {
         // Dev proxy for Air4Thai (production uses api/air4thai.js Vercel function)
