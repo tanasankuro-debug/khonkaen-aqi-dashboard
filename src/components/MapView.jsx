@@ -8,6 +8,10 @@ import { useFirmsHotspots } from '../hooks/useFirmsHotspots';
 import { useDraggable } from '../hooks/useDraggable';
 import MapLegend from './MapLegend';
 import ForecastPanel from './ForecastPanel';
+import {
+  getTemperatureColor, getPM25Color, getHeatColor,
+  hotspots as localHotspots,
+} from '../data/weatherData';
 
 const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_API_KEY || '';
 config.apiKey = MAPTILER_KEY;
@@ -114,33 +118,92 @@ function buildHotspotsGeoJSON(hotspots) {
   };
 }
 
+function buildTambonsGeoJSON(tambons) {
+  return {
+    type: 'FeatureCollection',
+    features: (tambons || []).map(d => ({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [d.lng, d.lat] },
+      properties: {
+        id:          d.id,
+        name:        d.name,
+        temperature: d.temperature,
+        pm25:        d.pm25,
+        heatValue:   d.heatValue,
+        humidity:    d.humidity,
+        windSpeed:   d.windSpeed,
+        tempColor:   getTemperatureColor(d.temperature),
+        pm25Color:   getPM25Color(d.pm25),
+        heatColor:   getHeatColor(d.heatValue),
+      },
+    })),
+  };
+}
+
+function buildLocalHotspotsGeoJSON() {
+  return {
+    type: 'FeatureCollection',
+    features: (localHotspots || []).map(h => ({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [h.lng, h.lat] },
+      properties: {
+        id:          h.id,
+        description: h.description,
+        temperature: h.temperature,
+        color:       h.intensity === 'extreme' ? '#ef4444' : '#f97316',
+      },
+    })),
+  };
+}
+
+const TAMBON_LAYER_MAP = {
+  temperature: ['layer-temperature'],
+  pm25:        ['layer-pm25'],
+  heat:        ['layer-heat'],
+  hotspot:     ['layer-localhotspot-glow', 'layer-localhotspot-circle'],
+  stream:      ['layer-stream'],
+};
+
 // ── Inner map (remounts on theme/mapType change) ─────────────────
 function MapInstance({
   isDarkMode, mapType,
   stations, selectedStation, onSelectStation,
   showWind, windOpacity,
   hotspots, showHotspots,
+  tambons, activeLayers, layerSettings, selectedDistrict, onDistrictClick, flyToTarget,
+  selectedMonth,
 }) {
-  const containerRef   = useRef(null);
-  const mapRef         = useRef(null);
-  const mapLoadedRef   = useRef(false);
-  const windLayerRef   = useRef(null);
+  const containerRef    = useRef(null);
+  const mapRef          = useRef(null);
+  const mapLoadedRef    = useRef(false);
+  const windLayerRef    = useRef(null);
+  const streamLoadedRef = useRef(false);
 
-  const stationsRef    = useRef(stations);
-  const selectedRef    = useRef(selectedStation);
-  const onSelectRef    = useRef(onSelectStation);
-  const showWindRef    = useRef(showWind);
-  const windOpacityRef = useRef(windOpacity);
-  const hotspotsRef    = useRef(hotspots);
-  const showHotspotsRef= useRef(showHotspots);
+  const stationsRef        = useRef(stations);
+  const selectedRef        = useRef(selectedStation);
+  const onSelectRef        = useRef(onSelectStation);
+  const showWindRef        = useRef(showWind);
+  const windOpacityRef     = useRef(windOpacity);
+  const hotspotsRef        = useRef(hotspots);
+  const showHotspotsRef    = useRef(showHotspots);
+  const tambonsRef         = useRef(tambons);
+  const activeLayersRef    = useRef(activeLayers);
+  const layerSettingsRef   = useRef(layerSettings);
+  const onDistrictClickRef = useRef(onDistrictClick);
+  const selectedMonthRef   = useRef(selectedMonth);
 
-  stationsRef.current     = stations;
-  selectedRef.current     = selectedStation;
-  onSelectRef.current     = onSelectStation;
-  showWindRef.current     = showWind;
-  windOpacityRef.current  = windOpacity;
-  hotspotsRef.current     = hotspots;
-  showHotspotsRef.current = showHotspots;
+  stationsRef.current        = stations;
+  selectedRef.current        = selectedStation;
+  onSelectRef.current        = onSelectStation;
+  showWindRef.current        = showWind;
+  windOpacityRef.current     = windOpacity;
+  hotspotsRef.current        = hotspots;
+  showHotspotsRef.current    = showHotspots;
+  tambonsRef.current         = tambons;
+  activeLayersRef.current    = activeLayers;
+  layerSettingsRef.current   = layerSettings;
+  onDistrictClickRef.current = onDistrictClick;
+  selectedMonthRef.current   = selectedMonth;
 
   // ── Init map ─────────────────────────────────────────────────
   useEffect(() => {
@@ -233,7 +296,88 @@ function MapInstance({
         },
       });
 
-      // 6. Hotspot hover popup
+      // 6. Tambon data layers (temperature / PM2.5 / heat / local hotspot)
+      map.addSource('tambons', { type: 'geojson', data: buildTambonsGeoJSON(tambonsRef.current) });
+      const circleStyle = (colorProp) => ({
+        'circle-radius':         ['interpolate', ['linear'], ['zoom'], 8, 12, 13, 20],
+        'circle-color':          ['get', colorProp],
+        'circle-opacity':        0.82,
+        'circle-stroke-width':   1.5,
+        'circle-stroke-color':   '#ffffff',
+        'circle-stroke-opacity': 0.7,
+      });
+      map.addLayer({ id: 'layer-temperature', type: 'circle', source: 'tambons', layout: { visibility: 'none' }, paint: circleStyle('tempColor') });
+      map.addLayer({ id: 'layer-pm25',        type: 'circle', source: 'tambons', layout: { visibility: 'none' }, paint: circleStyle('pm25Color') });
+      map.addLayer({ id: 'layer-heat',        type: 'circle', source: 'tambons', layout: { visibility: 'none' }, paint: circleStyle('heatColor') });
+
+      map.addSource('local-hotspots', { type: 'geojson', data: buildLocalHotspotsGeoJSON() });
+      map.addLayer({ id: 'layer-localhotspot-glow',   type: 'circle', source: 'local-hotspots', layout: { visibility: 'none' }, paint: { 'circle-radius': 24, 'circle-color': ['get', 'color'], 'circle-opacity': 0.20, 'circle-blur': 1 } });
+      map.addLayer({ id: 'layer-localhotspot-circle', type: 'circle', source: 'local-hotspots', layout: { visibility: 'none' }, paint: { 'circle-radius': 11, 'circle-color': ['get', 'color'], 'circle-opacity': 0.90, 'circle-stroke-width': 1.5, 'circle-stroke-color': '#ffffff' } });
+
+      // 7. Stream (waterway) line layer
+      map.addSource('stream-data', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      map.addLayer({
+        id: 'layer-stream', type: 'line', source: 'stream-data',
+        layout: { visibility: 'none', 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': '#38bdf8', 'line-width': 2, 'line-opacity': 0.85 },
+      });
+
+      // Tambon popups + clicks
+      {
+        let tamPop = null;
+        const TLAYERS = [
+          { id: 'layer-temperature', colorProp: 'tempColor', valueFn: p => `อุณหภูมิ: <b>${p.temperature}°C</b>` },
+          { id: 'layer-pm25',        colorProp: 'pm25Color', valueFn: p => `PM2.5: <b>${p.pm25} µg/m³</b>` },
+          { id: 'layer-heat',        colorProp: 'heatColor', valueFn: p => `ความร้อนสะสม: <b>${Math.round(p.heatValue * 100)}%</b>` },
+        ];
+        const bg  = isDarkMode ? '#0f172a' : '#ffffff';
+        const bdr = isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
+        const t1  = isDarkMode ? '#f1f5f9' : '#0f172a';
+        const t2  = isDarkMode ? '#94a3b8' : '#64748b';
+
+        TLAYERS.forEach(({ id, colorProp, valueFn }) => {
+          map.on('mouseenter', id, (e) => {
+            if (!map.getLayoutProperty(id, 'visibility') === 'visible') return;
+            map.getCanvas().style.cursor = 'pointer';
+            const p = e.features[0].properties;
+            const c = p[colorProp];
+            tamPop?.remove();
+            tamPop = new Popup({ closeButton: false, offset: 14 })
+              .setLngLat(e.features[0].geometry.coordinates.slice())
+              .setHTML(`<div style="background:${bg};border:1px solid ${bdr};border-radius:10px;padding:10px 14px;font-family:Inter,sans-serif">
+                <p style="color:${t1};font-weight:700;font-size:13px;margin:0">ต.${p.name}</p>
+                <p style="color:${c};font-size:12px;margin:4px 0 0">${valueFn(p)}</p>
+                <p style="color:${t2};font-size:10px;margin:3px 0 0">💧 ${p.humidity}% &nbsp;🌬️ ${p.windSpeed} km/h</p>
+              </div>`)
+              .addTo(map);
+          });
+          map.on('mouseleave', id, () => { map.getCanvas().style.cursor = ''; tamPop?.remove(); tamPop = null; });
+          map.on('click', id, (e) => {
+            if (!e.features?.length) return;
+            const props = e.features[0].properties;
+            const tambon = tambonsRef.current?.find(t => t.id === props.id);
+            if (tambon) onDistrictClickRef.current?.(tambon);
+          });
+        });
+
+        // Local hotspot popup
+        let hsPop2 = null;
+        map.on('mouseenter', 'layer-localhotspot-circle', (e) => {
+          map.getCanvas().style.cursor = 'pointer';
+          const p = e.features[0].properties;
+          hsPop2?.remove();
+          hsPop2 = new Popup({ closeButton: false, offset: 14 })
+            .setLngLat(e.features[0].geometry.coordinates.slice())
+            .setHTML(`<div style="background:${bg};border:1px solid ${bdr};border-radius:10px;padding:10px 14px;font-family:Inter,sans-serif">
+              <p style="color:#ef4444;font-weight:700;font-size:13px;margin:0">🔥 ${p.description}</p>
+              <p style="color:#f97316;font-size:12px;margin:4px 0 0">อุณหภูมิ: <b>${p.temperature}°C</b></p>
+            </div>`)
+            .addTo(map);
+        });
+        map.on('mouseleave', 'layer-localhotspot-circle', () => { map.getCanvas().style.cursor = ''; hsPop2?.remove(); hsPop2 = null; });
+      }
+
+      // 7. Hotspot hover popup
       let hsPop = null;
       map.on('mouseenter', 'hotspots-circle', (e) => {
         map.getCanvas().style.cursor = 'pointer';
@@ -354,11 +498,117 @@ function MapInstance({
     });
   }, [showHotspots]);
 
+  // ── Sync tambon data ────────────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const update = () => { const src = map.getSource('tambons'); if (src) src.setData(buildTambonsGeoJSON(tambons)); };
+    mapLoadedRef.current ? update() : map.once('load', update);
+  }, [tambons]);
+
+  // ── Toggle layer visibility ──────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoadedRef.current) return;
+    Object.entries(TAMBON_LAYER_MAP).forEach(([key, ids]) => {
+      const vis = activeLayers?.has(key) ? 'visible' : 'none';
+      ids.forEach(id => { if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', vis); });
+    });
+  }, [activeLayers]);
+
+  // ── Sync opacity per layer ───────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoadedRef.current) return;
+    [['temperature', 'layer-temperature'], ['pm25', 'layer-pm25'], ['heat', 'layer-heat']].forEach(([key, id]) => {
+      const s = layerSettings?.[key];
+      if (!s || !map.getLayer(id)) return;
+      const isOn = activeLayers?.has(key);
+      map.setLayoutProperty(id, 'visibility', isOn && s.visible ? 'visible' : 'none');
+      map.setPaintProperty(id, 'circle-opacity', (s.opacity ?? 0.75) * 0.9);
+    });
+    const sStream = layerSettings?.stream;
+    if (sStream && map.getLayer('layer-stream') && activeLayers?.has('stream')) {
+      map.setPaintProperty('layer-stream', 'line-opacity', sStream.opacity ?? 0.85);
+    }
+  }, [layerSettings, activeLayers]);
+
+  // ── Fetch stream GeoJSON when layer activated ────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const doFetch = () => {
+      if (!activeLayersRef.current?.has('stream')) return;
+      if (streamLoadedRef.current) return;
+      fetch('/geo.geojson')
+        .then(r => r.json())
+        .then(data => {
+          streamLoadedRef.current = true;
+          mapRef.current?.getSource('stream-data')?.setData(data);
+        })
+        .catch(err => console.error('stream fetch:', err));
+    };
+    mapLoadedRef.current ? doFetch() : map.once('load', doFetch);
+  }, [activeLayers]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── NASA MODIS monthly temperature raster ────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoadedRef.current) return;
+    const isActive = activeLayers?.has('monthly_temp');
+    const s = layerSettings?.monthly_temp ?? { visible: true, opacity: 0.80 };
+
+    if (map.getLayer('layer-monthly-temp')) map.removeLayer('layer-monthly-temp');
+    if (map.getSource('modis-raster'))      map.removeSource('modis-raster');
+
+    if (!isActive || !selectedMonth || !s.visible) return;
+
+    map.addSource('modis-raster', {
+      type: 'raster',
+      tiles: [
+        `https://gibs.earthdata.nasa.gov/wms/epsg3857/best/wms.cgi?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&BBOX={bbox-epsg-3857}&SRS=EPSG:3857&WIDTH=256&HEIGHT=256&LAYERS=MODIS_Terra_L3_Land_Surface_Temp_Monthly_Day&FORMAT=image/png&TRANSPARENT=TRUE&TIME=${selectedMonth}-01T00:00:00Z`,
+      ],
+      tileSize: 256,
+      attribution: '© NASA GIBS',
+    });
+    map.addLayer({
+      id: 'layer-monthly-temp', type: 'raster', source: 'modis-raster',
+      paint: { 'raster-opacity': s.opacity ?? 0.80 },
+    }, 'kk-fill');
+  }, [activeLayers, selectedMonth, layerSettings?.monthly_temp?.visible, layerSettings?.monthly_temp?.opacity]);
+
+  // ── FlyTo from Sidebar search ────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !flyToTarget) return;
+    const do_fly = () => map.flyTo({ center: [flyToTarget.lng, flyToTarget.lat], zoom: Math.max(map.getZoom(), 12), duration: 1200 });
+    mapLoadedRef.current ? do_fly() : map.once('load', do_fly);
+  }, [flyToTarget?.ts]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Highlight selected district ──────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoadedRef.current) return;
+    const selId = selectedDistrict?.id ?? -1;
+    ['layer-temperature', 'layer-pm25', 'layer-heat'].forEach(id => {
+      if (!map.getLayer(id)) return;
+      map.setPaintProperty(id, 'circle-radius', ['case', ['==', ['get', 'id'], selId],
+        24,
+        ['interpolate', ['linear'], ['zoom'], 8, 12, 13, 20],
+      ]);
+      map.setPaintProperty(id, 'circle-stroke-width', ['case', ['==', ['get', 'id'], selId], 3, 1.5]);
+    });
+  }, [selectedDistrict]);
+
   return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />;
 }
 
 // ── Main export ─────────────────────────────────────────────────
-export default function MapView({ stations, selectedStation, onSelectStation, isDarkMode }) {
+export default function MapView({
+  stations, selectedStation, onSelectStation, isDarkMode,
+  activeLayers, tambons, layerSettings, selectedDistrict, onDistrictClick, flyToTarget,
+  selectedMonth,
+}) {
   const [wind,          setWind]          = useState(null);
   const [showWind,      setShowWind]      = useState(true);
   const [windLoading,   setWindLoading]   = useState(true);
@@ -410,6 +660,13 @@ export default function MapView({ stations, selectedStation, onSelectStation, is
         windOpacity={windOpacity}
         hotspots={hotspots}
         showHotspots={showHotspots}
+        tambons={tambons}
+        activeLayers={activeLayers}
+        layerSettings={layerSettings}
+        selectedDistrict={selectedDistrict}
+        onDistrictClick={onDistrictClick}
+        flyToTarget={flyToTarget}
+        selectedMonth={selectedMonth}
       />
 
       {/* ── AQI Legend ──────────────────────────────── */}

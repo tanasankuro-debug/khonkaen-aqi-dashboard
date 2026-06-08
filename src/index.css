@@ -5,6 +5,21 @@
 html, body, #root { height: 100%; width: 100%; overflow: hidden;
   font-family: 'Inter', system-ui, -apple-system, sans-serif; }
 
+/* ─── Nav offset variables (BottomNav layout) ──────
+   --nav-x      : left offset for desktop side rail
+   --nav-bottom : bottom offset for mobile bottom bar
+──────────────────────────────────────────────────── */
+:root {
+  --nav-x:      0px;
+  --nav-bottom: 60px;
+}
+@media (min-width: 768px) {
+  :root {
+    --nav-x:      80px;
+    --nav-bottom: 0px;
+  }
+}
+
 /* ─── Theme CSS Variables ───────────────────────────
    Default = Light Mode
    [data-theme="dark"] overrides to Dark Mode

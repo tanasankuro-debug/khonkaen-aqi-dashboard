@@ -1,133 +1,187 @@
-import { useState, useCallback, useEffect } from 'react';
-import { Alert, ConfigProvider, theme as antdTheme } from 'antd';
+import { useState, useCallback, lazy, Suspense } from 'react';
 import { useAirQualityMap } from './hooks/useAirQualityMap';
-import TopBar from './components/TopBar';
-import Sidebar from './components/Sidebar';
+import { useRealtimeWeather } from './hooks/useRealtimeWeather';
+import BottomNav from './components/BottomNav';
 import MapView from './components/MapView';
+import Sidebar from './components/Sidebar';
 import StationDrawer from './components/StationDrawer';
+import HomeView from './components/HomeView';
+import SimulationView from './components/SimulationView';
+import RiskAreasView from './components/RiskAreasView';
+import RecurringView from './components/RecurringView';
+import ChatBotView from './components/ChatBotView';
+import ForecastTimePicker, { toApiStr } from './components/ForecastTimePicker';
+import MonthPicker from './components/MonthPicker';
+
+const WindMapView = lazy(() => import('./components/WindMapView'));
 
 export default function App() {
-  const { stations, loading, error, lastUpdated, useMock, refresh, toggleMock } =
-    useAirQualityMap();
+  // ── AQI data (for map tab's MapView) ──────────────────────────
+  const { stations, error } = useAirQualityMap();
 
-  const [selectedStation,  setSelectedStation]  = useState(null);
-  const [drawerOpen,       setDrawerOpen]       = useState(false);
-  const [sidebarOpen,      setSidebarOpen]      = useState(false);
-  const [isDarkMode,       setIsDarkMode]       = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // ── Weather/tambon data (for Sidebar + Home + Risk tabs) ──────
+  const { tambons, forecast, status: weatherStatus, lastUpdated, refresh: refreshWeather } =
+    useRealtimeWeather();
 
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light');
-  }, [isDarkMode]);
+  // ── UI state ──────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState('home');
+  const [activeLayers, setActiveLayers] = useState(new Set());
+  const [infoLayer, setInfoLayer] = useState('temperature');
+  const [selectedDistrict, setSelectedDistrict] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [layerSettings, setLayerSettings] = useState({
+    temperature:  { visible: true, opacity: 0.75 },
+    pm25:         { visible: true, opacity: 0.78 },
+    heat:         { visible: true, opacity: 0.78 },
+    stream:       { visible: true, opacity: 0.85 },
+    monthly_temp: { visible: true, opacity: 0.80 },
+    hotspot:      { visible: true, opacity: 0.90 },
+  });
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [forecastDatetime, setForecastDatetime] = useState(() => {
+    const now = new Date();
+    const h = Math.floor(now.getUTCHours() / 3) * 3;
+    return toApiStr(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), h)));
+  });
+  const [flyToTarget, setFlyToTarget] = useState(null);
+  const [selectedStation, setSelectedStation] = useState(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const updateLayerSetting = useCallback((id, key, value) => {
+    setLayerSettings(prev => ({ ...prev, [id]: { ...prev[id], [key]: value } }));
+  }, []);
+
+  const handleLayerToggle = useCallback((id) => {
+    setActiveLayers(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+    setInfoLayer(id);
+  }, []);
+
+  const handleFlyTo = useCallback(({ lat, lng }) => setFlyToTarget({ lat, lng, ts: Date.now() }), []);
+  const handleMapClick = useCallback(() => setSelectedDistrict(null), []);
+  const handleDistrictSelect = useCallback((district) => {
+    setSelectedDistrict(district);
+    if (district) {
+      setSearchQuery('');
+      setFlyToTarget({ lat: district.lat, lng: district.lng, ts: Date.now() });
+    }
+  }, []);
+
+  const handleTabChange = useCallback((tab) => {
+    setActiveTab(tab);
+    if (tab === 'map') setSidebarOpen(true);
+  }, []);
 
   const handleSelectStation = useCallback((s) => {
     setSelectedStation(s);
     setDrawerOpen(true);
-    setSidebarOpen(false);
   }, []);
 
-  const handleCloseDrawer  = useCallback(() => setDrawerOpen(false), []);
-  const handleToggleTheme  = useCallback(() => setIsDarkMode(d => !d), []);
+  const onMap = activeTab === 'map';
 
   return (
-    <ConfigProvider
-      theme={{
-        algorithm: isDarkMode ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
-        token: {
-          colorBgElevated: isDarkMode ? '#1e293b' : '#ffffff',
-          colorText:       isDarkMode ? '#f1f5f9' : '#0f172a',
-          borderRadius: 8,
-          fontFamily: 'Inter, system-ui, sans-serif',
-        },
-      }}
-    >
-      <div
-        className="flex flex-col h-screen w-screen overflow-hidden"
-        style={{ background: 'var(--t-bg)', transition: 'background 0.3s ease' }}
-      >
-        {/* ── Top Bar ─────────────────────────────────── */}
-        <TopBar
-          stations={stations}
-          loading={loading}
-          lastUpdated={lastUpdated}
-          useMock={useMock}
-          onRefresh={refresh}
-          onToggleMock={toggleMock}
-          sidebarOpen={sidebarOpen}
-          onToggleSidebar={() => setSidebarOpen(o => !o)}
-          isDarkMode={isDarkMode}
-          onToggleTheme={handleToggleTheme}
-        />
+    <div className="relative w-full h-screen overflow-hidden bg-[#f8faff]">
 
-        {/* ── Error Banner ─────────────────────────────── */}
-        {error && (
-          <div className="px-3 py-1.5 z-50 flex-shrink-0">
-            <Alert
-              message={error}
-              type="warning"
-              showIcon
-              closable
-              style={{ fontSize: 12, padding: '4px 12px' }}
-            />
-          </div>
-        )}
-
-        {/* ── Main Content ─────────────────────────────── */}
-        <div className="flex flex-1 overflow-hidden relative">
-
-          {/* Desktop sidebar */}
-          <div
-            className="hidden lg:flex flex-shrink-0 h-full transition-all duration-300"
-            style={{ width: sidebarCollapsed ? 40 : 'clamp(256px, 20rem, 320px)' }}
-          >
-            <Sidebar
-              stations={stations}
-              selectedId={selectedStation?.stationID}
-              onSelect={handleSelectStation}
-              isDarkMode={isDarkMode}
-              isCollapsed={sidebarCollapsed}
-              onToggleCollapse={() => setSidebarCollapsed(c => !c)}
-            />
-          </div>
-
-          {/* Mobile sidebar overlay */}
-          {sidebarOpen && (
-            <>
-              <div
-                className="lg:hidden absolute inset-0 z-[900] backdrop-blur-sm"
-                style={{ background: 'rgba(0,0,0,0.45)' }}
-                onClick={() => setSidebarOpen(false)}
-              />
-              <div className="lg:hidden absolute left-0 top-0 bottom-0 w-72 z-[901] flex flex-col fade-in-up">
-                <Sidebar
-                  stations={stations}
-                  selectedId={selectedStation?.stationID}
-                  onSelect={handleSelectStation}
-                  isDarkMode={isDarkMode}
-                />
-              </div>
-            </>
-          )}
-
-          {/* Map — fills remaining space, includes AQI markers + wind layer */}
-          <div className="flex-1 relative overflow-hidden">
+      {/* ── Map tab ── */}
+      {onMap && (
+        <>
+          <div className="absolute top-0 right-0"
+            style={{ left: 'var(--nav-x)', bottom: 'var(--nav-bottom)' }}>
             <MapView
               stations={stations}
               selectedStation={selectedStation}
               onSelectStation={handleSelectStation}
-              isDarkMode={isDarkMode}
+              activeLayers={activeLayers}
+              tambons={tambons}
+              layerSettings={layerSettings}
+              selectedDistrict={selectedDistrict}
+              onDistrictClick={handleDistrictSelect}
+              flyToTarget={flyToTarget}
+              selectedMonth={selectedMonth}
             />
           </div>
-        </div>
+          <Sidebar
+            activeLayers={activeLayers}
+            infoLayer={infoLayer}
+            onLayerToggle={handleLayerToggle}
+            tambons={tambons}
+            weatherStatus={weatherStatus}
+            lastUpdated={lastUpdated}
+            onRefreshWeather={refreshWeather}
+            onFlyTo={handleFlyTo}
+            selectedDistrict={selectedDistrict}
+            onDistrictSelect={handleDistrictSelect}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            isOpen={sidebarOpen}
+            onToggle={() => setSidebarOpen(v => !v)}
+            layerSettings={layerSettings}
+            onLayerSettingChange={updateLayerSetting}
+          />
+          {activeLayers.has('temperature') && (
+            <ForecastTimePicker datetime={forecastDatetime} onChange={setForecastDatetime} sidebarOpen={sidebarOpen} />
+          )}
+          {activeLayers.has('monthly_temp') && (
+            <MonthPicker selectedMonth={selectedMonth} onChange={setSelectedMonth} sidebarOpen={sidebarOpen} />
+          )}
+          {error && (
+            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-xl text-xs font-medium shadow-lg"
+              style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fcd34d',
+                marginLeft: 'calc(var(--nav-x) / 2)' }}>
+              ⚠️ {error}
+            </div>
+          )}
+        </>
+      )}
 
-        {/* ── Station Drawer ───────────────────────────── */}
-        <StationDrawer
-          station={selectedStation}
-          open={drawerOpen}
-          onClose={handleCloseDrawer}
-          isDarkMode={isDarkMode}
+      {/* ── Home tab ── */}
+      {activeTab === 'home' && (
+        <HomeView
+          tambons={tambons}
+          forecast={forecast}
+          weatherStatus={weatherStatus}
+          lastUpdated={lastUpdated}
+          onRefresh={refreshWeather}
         />
-      </div>
-    </ConfigProvider>
+      )}
+
+      {/* ── Wind map tab ── */}
+      {activeTab === 'wind' && (
+        <div className="absolute top-0 right-0" style={{ left: 'var(--nav-x)', bottom: 'var(--nav-bottom)' }}>
+          <Suspense fallback={<div className="flex items-center justify-center h-full text-slate-400 text-sm">กำลังโหลดแผนที่...</div>}>
+            <WindMapView />
+          </Suspense>
+        </div>
+      )}
+
+      {/* ── Simulation tab ── */}
+      {activeTab === 'simulation' && <SimulationView />}
+
+      {/* ── Risk Areas tab ── */}
+      {activeTab === 'risk-areas' && <RiskAreasView tambons={tambons} />}
+
+      {/* ── Recurring tab ── */}
+      {activeTab === 'recurring' && <RecurringView />}
+
+      {/* ── ChatBot tab ── */}
+      {activeTab === 'chatbot' && <ChatBotView />}
+
+      {/* ── Bottom / side nav ── */}
+      <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />
+
+      {/* ── Station detail drawer ── */}
+      <StationDrawer
+        station={selectedStation}
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+      />
+    </div>
   );
 }
