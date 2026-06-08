@@ -1,10 +1,8 @@
 import { FaHome, FaMap, FaFireAlt, FaExclamationTriangle, FaWater, FaCommentDots } from 'react-icons/fa';
-import { FiWind } from 'react-icons/fi';
 
 const TABS = [
   { id: 'home',        label: 'หน้าหลัก',  icon: FaHome },
   { id: 'map',         label: 'แผนที่',     icon: FaMap },
-  { id: 'wind',        label: 'กระแสลม',   icon: FiWind },
   { id: 'simulation',  label: 'แบบจำลอง',  icon: FaFireAlt },
   { id: 'risk-areas',  label: 'เสี่ยงภัย', icon: FaExclamationTriangle },
   { id: 'recurring',   label: 'ท่วมซ้ำ',   icon: FaWater },
@@ -14,7 +12,6 @@ const TABS = [
 const TAB_COLORS = {
   home:         ['#60a5fa', '#3b82f6'],
   map:          ['#34d399', '#10b981'],
-  wind:         ['#67e8f9', '#06b6d4'],
   simulation:   ['#fb923c', '#ef4444'],
   'risk-areas': ['#fbbf24', '#f97316'],
   recurring:    ['#38bdf8', '#0ea5e9'],
@@ -36,11 +33,11 @@ export default function BottomNav({ activeTab, onTabChange }) {
     <>
       <style>{styles}</style>
 
-      {/* ══ MOBILE — horizontal bottom bar (hidden on md+) ══ */}
+      {/* ══ MOBILE ══ */}
       <nav
         className="md:hidden fixed bottom-0 left-0 right-0 z-[1001]"
         style={{
-          height: '60px',
+          height: '64px',
           background: 'rgba(255,255,255,0.97)',
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
@@ -58,30 +55,33 @@ export default function BottomNav({ activeTab, onTabChange }) {
               <button
                 key={tab.id}
                 onClick={() => onTabChange(tab.id)}
-                className="relative flex flex-col items-center justify-end pb-1.5 flex-1 h-full min-w-0"
+                className="relative flex flex-col items-center justify-end pb-2 flex-1 h-full min-w-0 transition-opacity duration-150"
+                style={{ opacity: isActive ? 1 : 0.65 }}
               >
                 {isActive && (
                   <div className="absolute left-1/2"
                     style={{ top: 0, transform: 'translate(-50%,-50%)', zIndex: 10 }}>
-                    <div className="absolute inset-0 rounded-full opacity-25 scale-125"
+                    <div className="absolute inset-0 rounded-full opacity-20 scale-125"
                       style={{ background: `radial-gradient(circle,${c1},transparent 70%)` }} />
-                    <div className="w-11 h-11 rounded-full flex items-center justify-center shadow-lg"
+                    <div className="w-10 h-10 rounded-full flex items-center justify-center shadow-lg"
                       style={{
                         background: `linear-gradient(145deg,${c1},${c2})`,
-                        boxShadow: `0 4px 16px ${c2}55`,
+                        boxShadow: `0 4px 14px ${c2}55`,
                         animation: BUBBLE_ANIM,
                       }}>
-                      <Icon size={18} color="white" />
+                      <Icon size={16} color="white" />
                     </div>
                   </div>
                 )}
                 {!isActive && (
-                  <div className="flex items-center justify-center mb-0.5" style={{ width: 28, height: 22 }}>
+                  <div className="flex items-center justify-center mb-1" style={{ width: 28, height: 20 }}>
                     <Icon size={13} color="#94a3b8" />
                   </div>
                 )}
-                <span className="text-[8px] font-semibold leading-none truncate max-w-full px-0.5"
-                  style={{ color: isActive ? c2 : '#94a3b8' }}>
+                <span
+                  className="text-[9px] font-medium leading-none truncate max-w-full px-0.5"
+                  style={{ color: isActive ? c2 : '#94a3b8' }}
+                >
                   {tab.label}
                 </span>
               </button>
@@ -90,7 +90,7 @@ export default function BottomNav({ activeTab, onTabChange }) {
         </div>
       </nav>
 
-      {/* ══ DESKTOP — vertical left rail (hidden below md) ══ */}
+      {/* ══ DESKTOP ══ */}
       <nav
         className="hidden md:flex fixed left-0 top-0 bottom-0 z-[1001] flex-col"
         style={{
@@ -104,15 +104,15 @@ export default function BottomNav({ activeTab, onTabChange }) {
       >
         {/* Logo */}
         <div className="flex items-center justify-center flex-shrink-0"
-          style={{ height: '64px', borderBottom: '1px solid #e0eaff' }}>
-          <div className="w-10 h-10 rounded-2xl flex items-center justify-center shadow-sm"
+          style={{ height: '68px', borderBottom: '1px solid #e0eaff' }}>
+          <div className="w-11 h-11 rounded-2xl flex items-center justify-center shadow-sm"
             style={{ background: 'linear-gradient(135deg,#34d399,#10b981)' }}>
             <span className="text-white font-black text-sm select-none">KK</span>
           </div>
         </div>
 
         {/* Tab items */}
-        <div className="flex-1 flex flex-col items-center justify-evenly py-3">
+        <div className="flex-1 flex flex-col items-center justify-evenly py-4">
           {TABS.map(tab => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -121,23 +121,27 @@ export default function BottomNav({ activeTab, onTabChange }) {
               <button
                 key={tab.id}
                 onClick={() => onTabChange(tab.id)}
-                className="flex flex-col items-center justify-center gap-1 w-full py-1.5 px-2 transition-all duration-200"
+                className="flex flex-col items-center justify-center gap-1.5 w-full py-2 px-2 transition-all duration-200"
                 title={tab.label}
               >
                 <div
                   className="flex items-center justify-center rounded-2xl transition-all duration-200"
                   style={{
-                    width:      isActive ? '54px' : '40px',
-                    height:     isActive ? '38px' : '34px',
+                    width:      isActive ? '48px' : '38px',
+                    height:     isActive ? '36px' : '32px',
                     background: isActive ? `linear-gradient(145deg,${c1},${c2})` : 'transparent',
                     boxShadow:  isActive ? `0 4px 14px ${c2}45` : 'none',
                     animation:  isActive ? BUBBLE_ANIM : 'none',
                   }}
                 >
-                  <Icon size={isActive ? 17 : 16} color={isActive ? 'white' : '#94a3b8'} />
+                  <Icon
+                    size={isActive ? 18 : 16}
+                    color={isActive ? 'white' : '#94a3b8'}
+                    style={{ transition: 'color 0.15s' }}
+                  />
                 </div>
                 <span
-                  className="text-[8px] font-semibold leading-none text-center transition-colors duration-200"
+                  className="text-[9px] font-medium leading-none text-center transition-colors duration-200"
                   style={{ color: isActive ? c2 : '#b0bdcc' }}
                 >
                   {tab.label}
